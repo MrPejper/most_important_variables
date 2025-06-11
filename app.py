@@ -136,7 +136,7 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        best_model = clf_compare(include=["rf", "xgboost"], n_select=1)
+                        best_model = clf_compare(include=["rf"], n_select=1)
                         results = clf_pull()
                     else:
                         reg_setup(
@@ -149,7 +149,7 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        best_model = reg_compare(include=["rf", "xgboost"], n_select=1)
+                        best_model = reg_compare(include=["rf"], n_select=1)
                         results = reg_pull()
 
                 st.success("✅ Model został wytrenowany!")
@@ -209,7 +209,7 @@ if uploaded_file is not None:
 
                                 importance_ratio = most_important[importance_col] / top_features[importance_col].sum()
                                 if importance_ratio > 0.6:
-                                    st.info("ℹ️ Wykres pokazuje, że jest silnie zdominowany przez tę jedną cechę.")
+                                    st.info("ℹ️ Wykres pokazuje,że jest silnie zdominowany przez tę jedną cechę.")
                                 elif importance_ratio < 0.3:
                                     st.info("ℹ️ Na wykresie widzimy, że wpływ zmiennych jest bardziej równomierny.")
 
