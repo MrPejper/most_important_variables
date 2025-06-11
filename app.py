@@ -175,42 +175,6 @@ if uploaded_file is not None:
 
                     if os.path.exists(plot_path):
                         st.image(plot_path, caption="Feature Importance", use_container_width=True)
-
-                        # 🧠 Automatyczna interpretacja wykresu ważności cech:
-                        try:
-                            # Pobieramy tabelę ważności cech z ostatniego wykresu
-                            importance_df = clf_pull() if task_type == "classification" else reg_pull()
-                            # Spróbujmy znaleźć kolumny Feature i Importance, ignorując wielkość liter
-                            columns_lower = [c.lower() for c in importance_df.columns]
-                            if "feature" in columns_lower and "importance" in columns_lower:
-                                feat_col = importance_df.columns[columns_lower.index("feature")]
-                                imp_col = importance_df.columns[columns_lower.index("importance")]
-
-                                top_features = importance_df[[feat_col, imp_col]].sort_values(by=imp_col, ascending=False).head(5)
-
-                                st.subheader("🧠 Interpretacja wykresu:")
-                                most_important = top_features.iloc[0]
-                                st.markdown(
-                                    f"🔹 Najważniejszą zmienną w modelu jest **{most_important[feat_col]}**, "
-                                    f"która ma największy wpływ na wynik predykcji (waga: {most_important[imp_col]:.2f})."
-                                )
-
-                                others = top_features.iloc[1:]
-                                if not others.empty:
-                                    st.markdown("🔸 Inne istotne zmienne to:")
-                                    for _, row in others.iterrows():
-                                        st.markdown(f"- **{row[feat_col]}** (waga: {row[imp_col]:.2f})")
-
-                                importance_ratio = most_important[imp_col] / top_features[imp_col].sum()
-                                if importance_ratio > 0.6:
-                                    st.info("ℹ️ Model jest silnie zależny od jednej zmiennej. Warto zweryfikować jej znaczenie i jakość.")
-                                elif importance_ratio < 0.3:
-                                    st.info("ℹ️ Model opiera się na kilku cechach o podobnym znaczeniu – to często dobry znak.")
-                            else:
-                                st.warning("⚠️ Nie znaleziono wymaganych kolumn 'Feature' i 'Importance' w danych ważności cech.")
-                        except Exception as e:
-                            st.warning(f"⚠️ Nie udało się wygenerować interpretacji wykresu: {e}")
-
                     else:
                         raise FileNotFoundError("Wykres nie został wygenerowany.")
 
@@ -232,6 +196,47 @@ if uploaded_file is not None:
                             st.error("❌ Nie udało się wygenerować wykresu nawet przy użyciu Random Forest.")
                     except Exception as e2:
                         st.error(f"❌ Błąd przy używaniu Random Forest: {e2}")
+
+                # --- Interpretacja wykresu ważności ---
+                try:
+                    importance_df = clf_pull() if task_type == "classification" else reg_pull()
+
+                    # Znajdź kolumnę tekstową jako feature i pierwszą numeryczną jako ważność
+                    feature_col = None
+                    importance_col = None
+                    for col in importance_df.columns:
+                        if importance_df[col].dtype == object and feature_col is None:
+                            feature_col = col
+                        elif pd.api.types.is_numeric_dtype(importance_df[col]) and importance_col is None:
+                            importance_col = col
+                        if feature_col and importance_col:
+                            break
+
+                    if feature_col and importance_col:
+                        top_features = importance_df[[feature_col, importance_col]].sort_values(by=importance_col, ascending=False).head(5)
+
+                        st.subheader("🧠 Interpretacja wykresu:")
+                        most_important = top_features.iloc[0]
+                        st.markdown(
+                            f"🔹 Najważniejszą zmienną w modelu jest **{most_important[feature_col]}**, "
+                            f"która ma największy wpływ na wynik predykcji (waga: {most_important[importance_col]:.2f})."
+                        )
+
+                        others = top_features.iloc[1:]
+                        if not others.empty:
+                            st.markdown("🔸 Inne istotne zmienne to:")
+                            for _, row in others.iterrows():
+                                st.markdown(f"- **{row[feature_col]}** (waga: {row[importance_col]:.2f})")
+
+                        importance_ratio = most_important[importance_col] / top_features[importance_col].sum()
+                        if importance_ratio > 0.6:
+                            st.info("ℹ️ Model jest silnie zależny od jednej zmiennej. Warto zweryfikować jej znaczenie i jakość.")
+                        elif importance_ratio < 0.3:
+                            st.info("ℹ️ Model opiera się na kilku cechach o podobnym znaczeniu – to często dobry znak.")
+                    else:
+                        st.warning("⚠️ Nie udało się zidentyfikować kolumn cecha/ważność w danych ważności cech.")
+                except Exception as e:
+                    st.warning(f"⚠️ Nie udało się wygenerować interpretacji wykresu: {e}")
 
     except Exception as e:
         st.error(f"❌ Błąd przy przetwarzaniu: {e}")
