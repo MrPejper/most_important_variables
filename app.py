@@ -41,7 +41,6 @@ def best_separator(text, seps=[",", ";", "\t", "|"]):
     return best_sep
 
 def is_time_format(series):
-    """Sprawdza, czy większość wartości wygląda na format HH:MM:SS"""
     pattern = re.compile(r"^\d{1,2}:\d{2}:\d{2}$")
     matches = series.dropna().astype(str).apply(lambda x: bool(pattern.match(x)))
     return matches.mean() > 0.8
@@ -60,10 +59,8 @@ def convert_time_to_seconds(series):
 
 if uploaded_file is not None:
     try:
-        # Wczytanie pliku jako tekst
         file_text = uploaded_file.getvalue().decode("utf-8")
 
-        #  Wykrycie separatora Snifferem
         sniffer = csv.Sniffer()
         try:
             dialect = sniffer.sniff(file_text[:2048])
@@ -71,7 +68,6 @@ if uploaded_file is not None:
         except Exception:
             sep = None
 
-        # Wybór separatora
         if sep is None or sep not in [",", ";", "\t", "|"]:
             sep = best_separator(file_text)
 
@@ -85,7 +81,6 @@ if uploaded_file is not None:
         target_column = st.selectbox("🎯 Wybierz kolumnę docelową:", df.columns)
 
         if target_column:
-            # Automatyczna konwersja czasu HH:MM:SS na sekundy
             if is_time_format(df[target_column]):
                 st.info(f"🕒 Kolumna '{target_column}' wygląda na czas w formacie HH:MM:SS. Konwertuję na sekundy.")
                 df[target_column + "_sec"] = convert_time_to_seconds(df[target_column])
@@ -93,13 +88,11 @@ if uploaded_file is not None:
 
             st.write(f"✅ Wybrana kolumna docelowa to: **{target_column}**")
 
-            # Usuwanie brakujących wartości z targetu
             missing_target_rows = df[target_column].isnull().sum()
             if missing_target_rows > 0:
                 st.warning(f"⚠️ Usunięto {missing_target_rows} wierszy z brakującą wartością w kolumnie docelowej.")
                 df = df.dropna(subset=[target_column])
 
-            # Brakujące dane
             st.subheader("📉 Liczba brakujących wartości w pozostałych kolumnach:")
             missing_info = df.isnull().sum()
             missing_info = missing_info[missing_info > 0]
@@ -108,7 +101,6 @@ if uploaded_file is not None:
             else:
                 st.markdown("✅ Brak brakujących danych poza kolumną docelową.")
 
-            # Heurystyka: klasyfikacja vs regresja
             unique_values = df[target_column].nunique()
             is_numeric = pd.api.types.is_numeric_dtype(df[target_column])
 
@@ -160,7 +152,6 @@ if uploaded_file is not None:
                 st.subheader("🤖 Najlepszy model:")
                 st.write(best_model)
 
-                # Wykres ważności zmiennych
                 st.subheader("📊 Ważność zmiennych (Feature Importance):")
 
                 plot_path = "Feature Importance.png"
@@ -175,55 +166,47 @@ if uploaded_file is not None:
 
                     if os.path.exists(plot_path):
                         st.image(plot_path, caption="Feature Importance", use_container_width=True)
-
-                        # --- Interpretacja wykresu ważności ---
-                        try:
-                            importance_df = clf_pull() if task_type == "classification" else reg_pull()
-
-                            # Znajdź kolumnę tekstową jako cecha i pierwszą numeryczną jako ważność
-                            feature_col = None
-                            importance_col = None
-                            for col in importance_df.columns:
-                                if importance_df[col].dtype == object and feature_col is None:
-                                    feature_col = col
-                                elif pd.api.types.is_numeric_dtype(importance_df[col]) and importance_col is None:
-                                    importance_col = col
-                                if feature_col and importance_col:
-                                    break
-
-                            if feature_col and importance_col:
-                                top_features = importance_df[[feature_col, importance_col]].sort_values(by=importance_col, ascending=False).head(5)
-
-                                st.subheader("🧠 Interpretacja wykresu ważności cech:")
-                                most_important = top_features.iloc[0]
-                                st.markdown(
-                                    f"🔹 Na wykresie widać, że cecha **{most_important[feature_col]}** ma najwyższą ważność (waga: {most_important[importance_col]:.2f}), "
-                                    f"co oznacza, że ma największy wpływ na przewidywania modelu."
-                                )
-
-                                others = top_features.iloc[1:]
-                                if not others.empty:
-                                    st.markdown("🔸 Inne cechy o wysokiej ważności przedstawione na wykresie to:")
-                                    for _, row in others.iterrows():
-                                        st.markdown(f"- **{row[feature_col]}** (waga: {row[importance_col]:.2f})")
-
-                                importance_ratio = most_important[importance_col] / top_features[importance_col].sum()
-                                if importance_ratio > 0.6:
-                                    st.info("ℹ️ Wykres pokazuje,że jest silnie zdominowany przez tę jedną cechę.")
-                                elif importance_ratio < 0.3:
-                                    st.info("ℹ️ Na wykresie widzimy, że wpływ zmiennych jest bardziej równomierny.")
-
-                            else:
-                                st.warning("⚠️ Nie udało się zidentyfikować kolumn cecha/ważność w danych ważności cech.")
-
-                        except Exception as e:
-                            st.warning(f"⚠️ Nie udało się wygenerować interpretacji wykresu: {e}")
-
                     else:
                         raise FileNotFoundError("Wykres nie został wygenerowany.")
 
+                    # === INTERPRETACJA ===
+                    st.subheader("🧠 Interpretacja wykresu ważności cech:")
+
+                    feature_names = df.drop(columns=[target_column]).columns
+                    try:
+                        importances = best_model.feature_importances_
+                    except AttributeError:
+                        st.warning("⚠️ Model nie udostępnia atrybutu feature_importances_. Interpretacja nie jest możliwa.")
+                        importances = None
+
+                    if importances is not None:
+                        importance_df = pd.DataFrame({
+                            "Feature": feature_names,
+                            "Importance": importances
+                        }).sort_values(by="Importance", ascending=False)
+
+                        top_features = importance_df.head(5)
+
+                        most_important = top_features.iloc[0]
+                        st.markdown(
+                            f"🔹 Na wykresie widać, że cecha **{most_important['Feature']}** ma najwyższą ważność (waga: {most_important['Importance']:.2f}), "
+                            f"co oznacza, że ma największy wpływ na przewidywania modelu."
+                        )
+
+                        others = top_features.iloc[1:]
+                        if not others.empty:
+                            st.markdown("🔸 Inne cechy o wysokiej ważności przedstawione na wykresie to:")
+                            for _, row in others.iterrows():
+                                st.markdown(f"- **{row['Feature']}** (waga: {row['Importance']:.2f})")
+
+                        ratio = most_important["Importance"] / top_features["Importance"].sum()
+                        if ratio > 0.6:
+                            st.info("ℹ️ Model silnie polega na jednej dominującej cesze.")
+                        elif ratio < 0.3:
+                            st.info("ℹ️ Model równomiernie korzysta z wielu cech.")
+
                 except Exception as e:
-                    st.warning(f"⚠️ Nie można wygenerować wykresu ważności dla tego modelu: {e}")
+                    st.warning(f"⚠️ Nie można wygenerować wykresu ważności: {e}")
                     st.markdown("Spróbuję użyć modelu Random Forest do wygenerowania wykresu...")
 
                     try:
@@ -236,9 +219,6 @@ if uploaded_file is not None:
 
                         if os.path.exists(plot_path):
                             st.image(plot_path, caption="Feature Importance (RandomForest)", use_container_width=True)
-
-                            # Tu można by dodać analogiczną interpretację, jeśli chcesz
-
                         else:
                             st.error("❌ Nie udało się wygenerować wykresu nawet przy użyciu Random Forest.")
                     except Exception as e2:
