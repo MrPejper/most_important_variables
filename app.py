@@ -136,7 +136,7 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        best_model = clf_compare(include=["lr", "rf", "xgboost"], n_select=1)
+                        best_model = clf_compare(include=["rf", "xgboost"], n_select=1)
                         results = clf_pull()
                     else:
                         reg_setup(
@@ -149,7 +149,7 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        best_model = reg_compare(include=["lr", "rf", "xgboost"], n_select=1)
+                        best_model = reg_compare(include=["rf", "xgboost"], n_select=1)
                         results = reg_pull()
 
                 st.success("✅ Model został wytrenowany!")
