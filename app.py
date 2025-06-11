@@ -209,7 +209,7 @@ if uploaded_file is not None:
 
                                 importance_ratio = most_important[importance_col] / top_features[importance_col].sum()
                                 if importance_ratio > 0.6:
-                                    st.info("ℹ️ Wykres pokazuje, że model jest silnie zdominowany przez tę jedną cechę.")
+                                    st.info("ℹ️ Wykres pokazuje, że jest silnie zdominowany przez tę jedną cechę.")
                                 elif importance_ratio < 0.3:
                                     st.info("ℹ️ Na wykresie widzimy, że wpływ zmiennych jest bardziej równomierny.")
 
