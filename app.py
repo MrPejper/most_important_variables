@@ -22,8 +22,8 @@ from pycaret.regression import (
     plot_model as reg_plot,
 )
 
-st.set_page_config(page_title="AutoML z PyCaret", layout="wide")
-st.title("🔮 Automatyczne modelowanie z PyCaret")
+st.set_page_config(page_title="Najważniejsze zmienne", layout="wide")
+st.title("🔮 Najważniejsze zmienne")
 
 uploaded_file = st.file_uploader("📂 Wybierz plik CSV", type=["csv"])
 
@@ -60,10 +60,10 @@ def convert_time_to_seconds(series):
 
 if uploaded_file is not None:
     try:
-        # Wczytujemy plik jako tekst
+        # Wczytanie pliku jako tekst
         file_text = uploaded_file.getvalue().decode("utf-8")
 
-        # Próbujemy wykryć separator Snifferem
+        #  Wykrycie separatora Snifferem
         sniffer = csv.Sniffer()
         try:
             dialect = sniffer.sniff(file_text[:2048])
@@ -71,7 +71,7 @@ if uploaded_file is not None:
         except Exception:
             sep = None
 
-        # Jeśli wykryty separator jest dziwny lub brak, wybierz najlepszy heurystycznie
+        # Wybór separatora
         if sep is None or sep not in [",", ";", "\t", "|"]:
             sep = best_separator(file_text)
 
@@ -93,13 +93,13 @@ if uploaded_file is not None:
 
             st.write(f"✅ Wybrana kolumna docelowa to: **{target_column}**")
 
-            # Usuń brakujące wartości z targetu
+            # Usuwanie brakujących wartości z targetu
             missing_target_rows = df[target_column].isnull().sum()
             if missing_target_rows > 0:
                 st.warning(f"⚠️ Usunięto {missing_target_rows} wierszy z brakującą wartością w kolumnie docelowej.")
                 df = df.dropna(subset=[target_column])
 
-            # Pokaz braki danych
+            # Brakujące dane
             st.subheader("📉 Liczba brakujących wartości w pozostałych kolumnach:")
             missing_info = df.isnull().sum()
             missing_info = missing_info[missing_info > 0]
