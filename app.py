@@ -9,12 +9,14 @@ import numpy as np
 
 from pycaret.classification import (
     setup as clf_setup,
+    compare_models as clf_compare,
     create_model as clf_create,
     pull as clf_pull,
     plot_model as clf_plot,
 )
 from pycaret.regression import (
     setup as reg_setup,
+    compare_models as reg_compare,
     create_model as reg_create,
     pull as reg_pull,
     plot_model as reg_plot,
@@ -61,7 +63,7 @@ if uploaded_file is not None:
         # Wczytanie pliku jako tekst
         file_text = uploaded_file.getvalue().decode("utf-8")
 
-        # Wykrycie separatora Snifferem
+        #  Wykrycie separatora Snifferem
         sniffer = csv.Sniffer()
         try:
             dialect = sniffer.sniff(file_text[:2048])
@@ -134,22 +136,8 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        # Trenujemy trzy najpopularniejsze modele:
-                        models_to_try = ["lightgbm", "catboost", "rf"]
-                        best_model = None
-                        best_score = -np.inf
-                        all_results = []
-
-                        for m in models_to_try:
-                            model = clf_create(m)
-                            results = clf_pull()
-                            all_results.append(results.assign(Model=m))
-                            score = results.iloc[0]['Accuracy'] if 'Accuracy' in results.columns else -np.inf
-                            if score > best_score:
-                                best_score = score
-                                best_model = model
-
-                        results_df = pd.concat(all_results)
+                        best_model = clf_compare(include=["rf", "xgboost"], n_select=1)
+                        results = clf_pull()
                     else:
                         reg_setup(
                             data=df,
@@ -161,27 +149,13 @@ if uploaded_file is not None:
                             use_gpu=False,
                             fold=5,
                         )
-                        # Trenujemy trzy najpopularniejsze modele:
-                        models_to_try = ["lightgbm", "catboost", "rf"]
-                        best_model = None
-                        best_score = np.inf
-                        all_results = []
-
-                        for m in models_to_try:
-                            model = reg_create(m)
-                            results = reg_pull()
-                            all_results.append(results.assign(Model=m))
-                            score = results.iloc[0]['RMSE'] if 'RMSE' in results.columns else np.inf
-                            if score < best_score:
-                                best_score = score
-                                best_model = model
-
-                        results_df = pd.concat(all_results)
+                        best_model = reg_compare(include=["rf", "xgboost"], n_select=1)
+                        results = reg_pull()
 
                 st.success("✅ Model został wytrenowany!")
 
                 st.subheader("📈 Porównanie modeli:")
-                st.dataframe(results_df.reset_index(drop=True))
+                st.dataframe(results)
 
                 st.subheader("🤖 Najlepszy model:")
                 st.write(best_model)
@@ -202,34 +176,40 @@ if uploaded_file is not None:
                     if os.path.exists(plot_path):
                         st.image(plot_path, caption="Feature Importance", use_container_width=True)
 
-                        # 🧠 Interpretacja wykresu
+                        # 🧠 Automatyczna interpretacja wykresu ważności cech:
                         try:
+                            # Pobieramy tabelę ważności cech z ostatniego wykresu
                             importance_df = clf_pull() if task_type == "classification" else reg_pull()
-                            importance_df = importance_df.rename(columns=lambda x: x.strip().capitalize())
+                            # Spróbujmy znaleźć kolumny Feature i Importance, ignorując wielkość liter
+                            columns_lower = [c.lower() for c in importance_df.columns]
+                            if "feature" in columns_lower and "importance" in columns_lower:
+                                feat_col = importance_df.columns[columns_lower.index("feature")]
+                                imp_col = importance_df.columns[columns_lower.index("importance")]
 
-                            if "Feature" in importance_df.columns and "Importance" in importance_df.columns:
-                                top_features = importance_df[["Feature", "Importance"]].sort_values(by="Importance", ascending=False).head(5)
+                                top_features = importance_df[[feat_col, imp_col]].sort_values(by=imp_col, ascending=False).head(5)
 
                                 st.subheader("🧠 Interpretacja wykresu:")
                                 most_important = top_features.iloc[0]
                                 st.markdown(
-                                    f"🔹 Najważniejszą zmienną w modelu jest **{most_important['Feature']}**, "
-                                    f"która ma największy wpływ na wynik predykcji (waga: {most_important['Importance']:.2f})."
+                                    f"🔹 Najważniejszą zmienną w modelu jest **{most_important[feat_col]}**, "
+                                    f"która ma największy wpływ na wynik predykcji (waga: {most_important[imp_col]:.2f})."
                                 )
 
                                 others = top_features.iloc[1:]
                                 if not others.empty:
                                     st.markdown("🔸 Inne istotne zmienne to:")
                                     for _, row in others.iterrows():
-                                        st.markdown(f"- **{row['Feature']}** (waga: {row['Importance']:.2f})")
+                                        st.markdown(f"- **{row[feat_col]}** (waga: {row[imp_col]:.2f})")
 
-                                importance_ratio = most_important["Importance"] / top_features["Importance"].sum()
+                                importance_ratio = most_important[imp_col] / top_features[imp_col].sum()
                                 if importance_ratio > 0.6:
-                                    st.info("ℹ️ Model jest silnie zależny od jednej zmiennej. Warto sprawdzić jej jakość i znaczenie.")
+                                    st.info("ℹ️ Model jest silnie zależny od jednej zmiennej. Warto zweryfikować jej znaczenie i jakość.")
                                 elif importance_ratio < 0.3:
-                                    st.info("ℹ️ Model opiera się na kilku równoważnych cechach – to zazwyczaj dobry znak.")
+                                    st.info("ℹ️ Model opiera się na kilku cechach o podobnym znaczeniu – to często dobry znak.")
+                            else:
+                                st.warning("⚠️ Nie znaleziono wymaganych kolumn 'Feature' i 'Importance' w danych ważności cech.")
                         except Exception as e:
-                            st.warning(f"⚠️ Nie udało się wygenerować interpretacji: {e}")
+                            st.warning(f"⚠️ Nie udało się wygenerować interpretacji wykresu: {e}")
 
                     else:
                         raise FileNotFoundError("Wykres nie został wygenerowany.")
